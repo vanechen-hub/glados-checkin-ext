@@ -1,0 +1,19 @@
+# 扩展签名私钥 —— 绝不入库
+*.pem
+*.key
+*private-key*
+
+# 本地逆向取证产物（含第三方站点压缩 JS，不属本仓库）
+glados_probe/
+*.chunk.js
+
+# 工作区与编辑器
+.workbuddy/
+.vscode/
+.idea/
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+*.log

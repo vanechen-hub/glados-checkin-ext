@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>设置 - GLaDOS 签到助手</title>
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      padding: 20px; 
+      line-height: 1.6; 
+      font-size: 15px;
+      color: #000000; 
+      background-color: #333333; 
+    }
+    .card { 
+      border: 2px solid #efdcff; 
+      padding: 30px; 
+      border-radius: 12px; /* 让卡片外层也稍微圆润一点，与内部呼应 */
+      max-width: 650px; /* 宽度从 450px 增加到 650px，减少日志换行 */
+      background-color: #c4bdff; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+      margin: 40px auto; 
+    }
+    h3 { margin-top: 0; font-size: 1.2em; color: #000; text-align: center; }
+    
+    .info-text { 
+      font-size: 14px; 
+      color: #272727; 
+      background: #f9f9f9; 
+      padding: 15px; /* 稍微增加一点内边距，让文字不那么贴边 */
+      border-radius: 12px; /* 从 4px 改为 12px，边缘更加圆润柔和 */
+      margin: 15px 0; 
+    }
+
+    a:link {
+      color: #0f76eb;
+      text-decoration: none;
+    }
+    a:visited {
+      color: #d3084b;
+      text-decoration: none; 
+    }
+    a:hover {
+      color: #0f76eb;
+      text-decoration: underline;
+      /* font-weight: bold; */
+      text-shadow: 1px 1px 1px #94c6ff;
+    }
+    a:active {
+      color: #d3084b;
+    }
+    
+    .history { margin-top: 20px; font-size: 0.9em; border-top: 1px solid #dcc7f7; padding-top: 15px; }
+    #historyList { padding-left: 20px; line-height: 1.8; color: #2c3e50; }
+    input[type="number"] { width: 60px; padding: 4px; }
+    button { cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 1px solid #ccc; background: #fff; transition: all 0.2s; } /* 给按钮加了一点动画过渡，提升质感 */
+    #saveBtn { background: #28a745; color: white; border: none; }
+    #saveBtn:hover { background: #218838; }
+    #testBtn:hover { background: #f0f8ff; } /* 鼠标悬停在测试按钮上的小效果 */
+
+    /* IQI 采样面板 */
+    #iqiSummary { font-size: 13px; line-height: 1.7; }
+    #iqiSummary b { color: #000; }
+    table.iqi { width: 100%; border-collapse: collapse; font-size: 12px; background: #f9f9f9; border-radius: 8px; overflow: hidden; }
+    table.iqi th, table.iqi td { padding: 4px 6px; text-align: right; border-bottom: 1px solid #e3e3e3; }
+    table.iqi th:first-child, table.iqi td:first-child { text-align: left; }
+    table.iqi th { background: #efdcff; color: #000; font-weight: 600; }
+    table.iqi tr.hot td { background: #ffe9dc; font-weight: 600; }
+    .muted { color: #555; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h3>GLaDOS 签到助手 (v1.5.5)</h3>
+    
+    <div>
+      <label for="targetHour">⏰ 设定签到时间：<span class="muted">（本版已改为 Poor 触发 + 21:00 兜底，此项不再生效）</span> </label>
+      <select id="targetHour" style="padding: 4px; border-radius: 4px;">
+        <option value="0">00:00</option>
+        <option value="1">01:00</option>
+        <option value="2">02:00</option>
+        <option value="3">03:00</option>
+        <option value="4">04:00</option>
+        <option value="5">05:00</option>
+        <option value="6">06:00</option>
+        <option value="7">07:00</option>
+        <option value="8">08:00</option>
+        <option value="9" selected>09:00</option>
+        <option value="10">10:00</option>
+        <option value="11">11:00</option>
+        <option value="12">12:00</option>
+        <option value="13">13:00</option>
+        <option value="14">14:00</option>
+        <option value="15">15:00</option>
+        <option value="16">16:00</option>
+        <option value="17">17:00</option>
+        <option value="18">18:00</option>
+        <option value="19">19:00</option>
+        <option value="20">20:00</option>
+        <option value="21">21:00</option>
+        <option value="22">22:00</option>
+        <option value="23">23:00</option>
+      </select>
+    </div>
+
+    <div class="info-text">
+      <p style="margin-top:0;"><b>💡 运行机制说明（v1.5.5）：</b></p>
+      <p><b>📡 采样：</b>每 <b>5 分钟</b>读取一次服务端网络质量（<code>/api/user/iqi</code>）并落盘，保留最近 14 天。
+      签到页开着时由页面采样，页面关了则由后台自动接手，<b>不依赖标签页存在</b>。</p>
+      <p><b>🟠 签到条件：</b>采样到网络质量为 <b>Poor</b> 时自动签到。Good/Fair 等状态只记录、不签到。</p>
+      <p><b>🛟 兜底保护：</b>当天 <b>21:00 起</b>仍未签到时，无视网络等级<b>强制签到</b>。
+      判定窗口为 <b>21:00–23:59（3 小时）</b>，期间每 5 分钟采样闹钟都会检查一次，约 <b>36 次机会</b>，
+      任一时刻机器醒着就能签上。即使签到页没打开，后台也会直接调 API 提交，并刷新一次签到页。</p>
+      <p><b>🔐 设备不匹配：</b>GLaDOS 改版后引入<b>设备绑定</b>校验。若判定会话/设备异常，签到会返回
+      <code>code=4 / device-mismatch</code> 并弹「重新登录」弹窗，自动化无法代为越过。此时扩展会：
+      ① 在徽标与历史里明确提示「⚠ 设备不匹配/会话失效，请重新登录 GLaDOS」；② <b>不</b>误判为已签到（旧版曾把含
+      “get” 的错误提示误当成功，导致静默断签）；③ 持续重试，你手动重新登录后自动恢复。</p>
+      <p><b>🌐 域名：</b>自动适配 glados.cloud / glados-facility.com / glados.rocks / glados.space / glados.one /
+      glados.network，会自动识别你实际登录的是哪一个。</p>
+      <p><b>🔏 工作量证明（v1.5.5 修复）：</b>GLaDOS 改版后签到接口<b>强制要求 PoW 挑战</b>——须先
+      <code>GET /api/user/checkin/challenge</code> 取 nonce，再算 <code>SHA-256(nonce + "glados-observer-v1")</code> 作为
+      proof 一并提交。旧版只发 <code>{token}</code> 会被服务端拒签（或降级成 1 分）。本版已在后台完整复刻该流程，
+      且不再依赖点击页面按钮（改版后按钮类名已变），改成统一由后台直接调 API，关掉签到页也能签。</p>
+      <p style="margin-bottom:0;"><b>⚠️ 前提：</b>当前浏览器需已登录任一 GLaDOS 站点，例如
+      <a href="https://glados-facility.com/console/checkin" target="_blank" rel="noreferrer">glados-facility.com</a>。
+      未登录时下方采样面板会显示「未登录」。</p>
+      <br>
+	    <b>🎈 原版作者反馈渠道：<a href="https://imneko.com" target="_blank">一只夜猫子 imneko.com</a></b>
+    </div>
+
+    <div style="margin: 15px 0;">
+      <label style="cursor: pointer;">
+        <input type="checkbox" id="notifyToggle" checked> 开启桌面结果通知
+      </label>
+    </div>
+
+    <button id="saveBtn">保存设置</button>
+    <button id="testBtn" style="color: #007bff; margin-left: 8px;">手动测试签到</button>
+
+    <div class="history">
+      <h4 style="margin-top: 0;">📊 IQI 网络质量采样</h4>
+      <div id="iqiSummary" class="info-text">加载中…</div>
+      <div id="iqiHourly"></div>
+      <div style="margin-top: 10px;">
+        <button id="exportBtn">导出采样 JSON</button>
+        <button id="clearBtn" style="margin-left: 8px; color: #c0392b;">清空采样</button>
+      </div>
+    </div>
+
+    <div class="history">
+      <h4 style="margin-top: 0;">📅 最近 30 次签到日志:</h4>
+      <ul id="historyList"></ul>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{
+   "action": {
+      "default_title": "GLaDOS 签到助手"
+   },
+   "background": {
+      "service_worker": "background.js"
+   },
+   "description": "监控 GLaDOS 网络质量(IQI)：每 5 分钟采样并记录历史，网络为 Poor 时自动签到；当天 21:00 仍未签则强制签到并刷新签到页。支持 glados.cloud / glados-facility.com / glados.rocks / glados.space / glados.one / glados.network 全部域名。",
+   "host_permissions": [
+      "https://*.glados.cloud/*",
+      "https://*.glados-facility.com/*",
+      "https://*.glados.rocks/*",
+      "https://*.glados.space/*",
+      "https://*.glados.one/*",
+      "https://*.glados.network/*"
+   ],
+   "icons": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA342ylQPEtpSwFISHQqC9D6PW32PUtTF6UGSBnj5V2PHrjMQCevjyLxq/yAKCn4R9qRPJCQxfxkBZkUnTw4UlKxHnYI7aRmjUhH8HZDN0EY3p4vocvszMnFwifSEnlWDJGHNScmcGCv0bpCdxatbZ1+r1sXyyEO7OxS2wuQJ8DMOiJ8Jv38yabauR3OSjNof3Gg3ETBhIzrCRdprVYtzshH+YpBqNT05kJ0+6T78qiOADYQHjl1llgzrsy0gQSnuPdD5uTxbAT7UQfxw71NqNruNWgNbf0vznd6sAWuRJZxSU4CrKXz4/4lwSuiyDjchs4YMRBE68CgOrzYB6we2dXwIDAQAB",
+   "manifest_version": 3,
+   "name": "GLaDOS 签到助手 (IQI采样 + Poor签到 + 21:00兜底)",
+   "options_page": "options.html",
+   "content_scripts": [
+      {
+         "matches": [
+            "https://*.glados.cloud/console/checkin*",
+            "https://*.glados-facility.com/console/checkin*",
+            "https://*.glados.rocks/console/checkin*",
+            "https://*.glados.space/console/checkin*",
+            "https://*.glados.one/console/checkin*",
+            "https://*.glados.network/console/checkin*"
+         ],
+         "js": [
+            "content.js"
+         ],
+         "css": [
+            "content.css"
+         ],
+         "run_at": "document_idle"
+      }
+   ],
+   "permissions": [
+      "alarms",
+      "storage",
+      "notifications",
+      "declarativeNetRequest",
+      "tabs"
+   ],
+   "version": "1.5.5"
+}

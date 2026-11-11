@@ -4,23 +4,37 @@
 ![Platform](https://img.shields.io/badge/platform-Chrome%20MV3-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-一个本地运行的 Chrome Manifest V3 扩展：每 5 分钟采样 GLaDOS 的网络质量（IQI）并记录，**只在网络为 Poor 时签到**以拿到最高积分；当天 21:00 仍未签则强制兜底，防止漏签。
+一个本地运行的 Chrome Manifest V3 扩展：每 5 分钟采样 GLaDOS 的网络质量（IQI）并记录，**优先在网络为 Poor 时签到**（争取更高的线路加成）；当天 21:00 仍未签则强制兜底，防止漏签。
+
+> 注意：最终发放多少积分**由服务端在签到那一刻结算**，扩展只能尽量挑质量差的时刻提交，不能保证拿到某个具体分值。详见下方「关于 Cable +8」。
 
 > 本仓库是 [原版 GLaDOS 自动签到助手](https://imneko.com) 的 **fork 修改版**，与原作者的 Chrome 商店版本（不同扩展 ID）互不兼容。请以本仓库源码通过开发者模式加载。
 
 ## 为什么要等 Poor 再签
 
-GLaDOS 的签到积分由当时的线路质量分（`iqi.quality.score`）决定，**网络越差奖励越高**：
+GLaDOS 设有「线路加成（Cable Bonus）」：**网络越差，单次签到的加成越高**。签到页 `renderPointsBreakdown` 里前端按 `iqi.quality.score` 预估的档位是：
 
-| 质量分 | 签到奖励 |
+| 质量指数 `score` | 前端预估加成 |
 |---|---|
-| `< 80`（Poor） | **+8** |
+| `< 80` | +8 |
 | `< 85` | +5 |
 | `< 90` | +3 |
 | `<= 95` | +2 |
-| `> 95`（优秀） | +1 |
+| `> 95` | +1 |
 
-所以在网络好时签到只能拿 1 分。扩展因此把 Poor 作为主要触发条件，21:00 兜底只作为「今天别漏签」的保险——如果一整天都没出现 Poor，那天拿 1 分是正常结果。
+`/console/network` 的 Cable Bonus 卡片用 `[80, 85, 90, 96]` 对 `network-insight` 的 `current.score` 分档，口径基本一致。
+
+### 关于「页面显示 Cable +8，实际只加 1」
+
+这是**正常现象，不是扩展故障**，手动点页面按钮也一样。原因有三：
+
+1. **那张明细卡是说明性的，不是结算承诺**。同一行里 `Base` 档直接写死 `"+X"` 占位符；`Cable` 的值是浏览器本地用 `iqi.quality.score` 算出来的预估。
+2. **页面 IQI 只在 `componentDidMount` 取一次**（`loadIQI()` 无轮询、`setInterval` 与 IQI 无关）。页面开着不刷新，`Cable +8` 就是**打开页面那一刻**的旧值；几小时后网络恢复，值还停在 +8。
+3. **实际发放由服务端决定**：`POST /user/checkin` 响应里的 `points` 才是本次实发，前端只是 `setState({points: n.points})` 显示它。服务端按签到请求那一刻自己的线路质量快照结算，与浏览器缓存的 IQI 不同源、不同时点。
+
+自查方法：刷新签到页后把鼠标悬停在 `Cable +N` 徽标上看 tooltip `Current index XXX`；或打开 `/console/network` 看 Cable Bonus 卡片里带 **`· now`** 高亮的那一行 `+points`——那是服务端当前档位。若它是 `+1`，签到加 1 分就是正确结算。
+
+因此扩展的定位是：**尽量把提交动作放到质量差的时刻**，21:00 兜底只保证「今天不漏签」（通常就是 1 分）。选项页导出的每条采样都带 `s`（score），把签到时刻的 score 与实发分数对照，就能校准你自己线路的真实映射。
 
 选项页的 **IQI 采样面板**提供 24 小时聚合表（均分 / 最低分 / Poor 次数，含 Poor 的时段高亮），攒几天数据就能看出自己线路一天中的差时段。
 

@@ -2,7 +2,7 @@
 // 作用域：全部 GLaDOS 域名的 /console/checkin（见 manifest.content_scripts.matches）
 // 功能：
 //   1) 每 5 分钟采样一次服务器网络质量(IQI)，交给 background 落盘，形成可分析的时间序列；
-//   2) quality.level === 'poor' 且今日未签 → 点击 Checkin 按钮；
+//   2) 采样到加成档（score < 85 / level=poor）且今日未签 → 交给 background 调 API 签到；
 //   3) 兜底——当天 21:00 仍未签到，则无视网络等级强制点击；
 //   4) 右下角徽标展示当前等级/分数、距上次变化时长、累计采样数。
 // 说明：服务工作者(service worker)无法操作 DOM，因此由本脚本在页面内完成点击。
@@ -15,6 +15,16 @@ const POLL_INTERVAL = 5 * 60 * 1000; // 每 5 分钟采样一次
 // 兜底：当天到达该时刻仍未签到，则无视网络等级强制签到（与 background.js 保持一致）
 const FORCE_HOUR = 21;
 const FORCE_MINUTE = 0;
+
+// 与 background.js 保持一致：加成档 score<85（+5/+8），而非只认 Poor(+8)。
+// 页面 Cable +N 用的是打开页那一刻缓存的 iqi.score；这里每 5 分钟 no-store 重取，更贴近实时。
+const BONUS_SCORE_MAX = 85;
+
+function isBonusLevel(q) {
+  if ((q.level || "").toLowerCase() === "poor") return true;
+  const s = Number(q.score);
+  return Number.isFinite(s) && s > 0 && s < BONUS_SCORE_MAX;
+}
 
 function isPastForceTime() {
   const n = new Date();
@@ -168,8 +178,8 @@ async function loop() {
     if (isPastForceTime()) {
       setBadge("GLaDOS 助手：已过 21:00 未签 → 强制签到", QUALITY_COLORS.poor);
       done = await performCheckinClick("force");
-    } else if ((q.level || "").toLowerCase() === "poor") {
-      setBadge("GLaDOS 助手：网络 Poor → 点击 Checkin", QUALITY_COLORS.poor);
+    } else if (isBonusLevel(q)) {
+      setBadge(`GLaDOS 助手：加成档 score=${q.score} → 后台 API 签到`, QUALITY_COLORS.poor);
       done = await performCheckinClick("poor");
     }
   }

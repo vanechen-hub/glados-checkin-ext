@@ -1,7 +1,7 @@
 // GLaDOS 签到助手 - background service worker (v1.5.0)
 // 职责：
 //   1) 每 5 分钟采样一次网络质量(IQI)并落盘，形成可分析的时间序列（用于找“一天中的好时机”）；
-//   2) 采样到 quality.level === 'poor' 且今日未签 → 直接调 API 签到；
+//   2) 采样到加成档（score < 85 / level=poor）且今日未签 → 直接调 API 签到；
 //   3) 每天 21:00 兜底：今日仍未签则刷新签到页 + 直接调 API，双保险防漏签；
 //   4) 统一写入采样与签到历史（单点写者，避免与 content script 争抢同一份数组）。
 //
@@ -28,6 +28,13 @@ const SAMPLE_PERIOD_MIN = 5;              // 采样周期：5 分钟
 const PAGE_FRESH_MS = 4 * 60 * 1000;      // 4 分钟内已有样本 → 认为签到页正在采，后台让路
 const RESCAN_MS = 30 * 60 * 1000;         // 换域名探测的节流间隔
 const MAX_SAMPLES = 4032;                 // 5 分钟 × 4032 ≈ 14 天
+
+// 签到触发阈值：服务端加成档按 quality.score 分档（与页面 Cable +N 同一张表）
+//   score<80 → +8(Poor) / <85 → +5 / <90 → +3 / <=95 → +2 / >95 → +1
+// 旧版只认 level === "poor"（仅 +8 档）。多数日子网络只在 80~85 徘徊，死等 Poor
+// 的结果是整天空转，最后掉到 21:00 兜底拿 1 分。故放宽到 <85（+5 及以上）。
+// 想只等 +8 档，把这里改成 80 即可。
+const BONUS_SCORE_MAX = 85;
 
 // 兜底：当天到达该时刻仍未签到，则无视网络等级强制签到（与 content.js 保持一致）
 // v1.5.3：21:00 起（原 21:00）。判定窗口 = 21:00–23:59 共 3 小时，
@@ -191,7 +198,7 @@ async function sampleIQI(trigger) {
       e: r.level ? null : r.reason
     });
 
-    if ((r.level || "").toLowerCase() === "poor") await checkinOnPoor(host);
+    if (isBonusLevel(r)) await checkinOnBonus(host, r.score);
     return info;
   } catch (e) {
     console.error("IQI 采样失败:", e);
@@ -223,12 +230,21 @@ async function recordSample(sample) {
   };
 }
 
-// 采样到 Poor → 今日未签则签到
-async function checkinOnPoor(domain) {
+// 是否处于「有加成」的档位：服务端分档 +8/+5（score<85），或等级直接为 Poor。
+// 优先用新鲜采到的 score（扩展每 5 分钟 no-store，比页面 mount 时的缓存准）；
+// score 缺失时才回退到 level，避免接口偶尔不返回 score 导致漏触发。
+function isBonusLevel(r) {
+  if ((r.level || "").toLowerCase() === "poor") return true;
+  const s = Number(r.score);
+  return Number.isFinite(s) && s > 0 && s < BONUS_SCORE_MAX;
+}
+
+// 采样到加成档 → 今日未签则签到
+async function checkinOnBonus(domain, score) {
   const d = await chrome.storage.local.get(["lastCheckInDate"]);
   if (d.lastCheckInDate === todayStr()) return;
-  console.log("采样到 Poor，执行签到");
-  performFetch(todayStr(), "poor", domain);
+  console.log("采样到加成档 score=" + score + "，执行签到");
+  performFetch(todayStr(), "poor", domain, score);
 }
 
 // ---- 21:00 兜底 ----
@@ -342,7 +358,7 @@ async function getChallenge(host) {
 
 // 直接发送签到请求（Poor 触发 / 手动测试 / 21:00 兜底 共用；不依赖标签页与 DOM）
 // 返回 Promise，便于调用方 await —— 确保 MV3 service worker 在请求完成前不被挂起。
-function performFetch(today, source, domain) {
+function performFetch(today, source, domain, score) {
   const host = domain || DEFAULT_DOMAIN;
   return (async () => {
     const nonce = await getChallenge(host);
@@ -355,7 +371,7 @@ function performFetch(today, source, domain) {
     })
       .then((response) => response.json())
       .then((result) => {
-        handleCheckinResult(today, result.message, source, result);
+        handleCheckinResult(today, result.message, source, result, score);
       })
       .catch((error) => {
         console.error("网络请求发生错误:", error);
@@ -365,13 +381,17 @@ function performFetch(today, source, domain) {
 }
 
 // 统一处理签到结果：记录历史、更新日期、发通知
-function handleCheckinResult(today, statusMsg, source, result) {
+function handleCheckinResult(today, statusMsg, source, result, score) {
   const label = sourceLabel(source);
   const msg = statusMsg || "服务器无返回信息";
   const code = result && result.code;
   const reason = (result && result.reason) || "";
   console.log(`[${label}] 服务器返回 code=${code} reason=${reason}:`, msg);
-  saveHistory(`[${label}] ` + msg);
+  // 把「触发时采样 score」与「服务端实发 points」记在同一条历史里，
+  // 用于校准预估档位与实发分值的偏差（页面 Cable +N 只是前端缓存预估，不是结算单）。
+  const ctx = (score !== undefined && score !== null ? ` · 触发score=${score}` : "") +
+    (result && result.points !== undefined && result.points !== null ? ` · 实发${result.points}分` : "");
+  saveHistory(`[${label}] ` + msg + ctx);
 
   // 手动测试：只记录与通知，不写日期（避免污染当天真实签到判定）
   if (source === "manual") {

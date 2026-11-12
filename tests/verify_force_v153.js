@@ -32,7 +32,8 @@ function makeHarness({ iqiLevel = "good", lastCheckInDate = "", fixedDate }) {
 
   const fetchMock = async (url, opts) => {
     if (typeof url === "string" && url.includes("/api/user/iqi")) {
-      return { ok: true, status: 200, json: async () => ({ code: 0, data: { quality: { level: iqiLevel, score: 80 } } }) };
+      // v1.5.6 起 score<85 会触发加成档签到；这里模拟「网络良好」必须用高分，否则 S14 会被新逻辑正确地签到。
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: { quality: { level: iqiLevel, score: 97 } } }) };
     }
     if (typeof url === "string" && url.includes("/api/user/checkin")) {
       checkinCalls.push({ url, method: (opts && opts.method) || "POST" });

@@ -414,7 +414,9 @@ function handleCheckinResult(today, statusMsg, source, result, score) {
   // 成功判定：服务端 code===0 为权威；或明确告知“今天已签到/重复”也算完成，避免反复重试。
   // 注意：绝不能用“消息里是否含某个词”兜底成功——旧版 msgLower.includes("get") 会把含 get 的
   // 错误提示误判为成功，导致当天被标记为已签、不再重试而静默断签。
-  const alreadyDone = /已签到|已经签到|今天.*签到|重复签到|已签过|already.{0,6}(check|sign)|signed|duplicate/i.test(msg);
+  // 服务端「今日已记录」的英文响应："Today's observation logged. Return tomorrow for more points."
+  // 旧版未识别它 → 不写日期 → 每 5 分钟重复 POST、历史刷屏（实测 11/12 晚连刷 14 次）。
+  const alreadyDone = /已签到|已经签到|今天.*签到|重复签到|已签过|already.{0,6}(check|sign)|signed|duplicate|observation.{0,20}logged|return tomorrow|tomorrow for more points/i.test(msg);
   const success = code === 0 || alreadyDone;
   if (success) {
     chrome.storage.local.set({ lastCheckInDate: today, lastDeviceMismatch: "" });

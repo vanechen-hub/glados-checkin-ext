@@ -71,7 +71,7 @@
 </head>
 <body>
   <div class="card">
-    <h3>GLaDOS 签到助手 (v1.5.6)</h3>
+    <h3>GLaDOS 签到助手 (v1.5.7)</h3>
     
     <div>
       <label for="targetHour">⏰ 设定签到时间：<span class="muted">（本版已改为 Poor 触发 + 21:00 兜底，此项不再生效）</span> </label>
@@ -104,7 +104,7 @@
     </div>
 
     <div class="info-text">
-      <p style="margin-top:0;"><b>💡 运行机制说明（v1.5.6）：</b></p>
+      <p style="margin-top:0;"><b>💡 运行机制说明（v1.5.7）：</b></p>
       <p><b>📡 采样：</b>每 <b>5 分钟</b>读取一次服务端网络质量（<code>/api/user/iqi</code>）并落盘，保留最近 14 天。
       签到页开着时由页面采样，页面关了则由后台自动接手，<b>不依赖标签页存在</b>。</p>
       <p><b>🟠 签到条件（v1.5.6 放宽）：</b>采样到 <b>quality.score &lt; 85</b>（加成档 +5 / +8）或等级为 <b>Poor</b> 时自动签到，
@@ -113,6 +113,8 @@
       <p><b>📉 关于页面上的 "Cable +N"：</b>那是签到页用<b>打开页面那一刻缓存的</b> <code>iqi.quality.score</code> 在前端算的
       <b>预估</b>（<code>score&lt;80→+8 / &lt;85→+5 / &lt;90→+3 / &lt;=95→+2 / &gt;95→+1</code>），不是结算承诺；
       实际加分由服务端在<b>签到那一刻</b>返回 <code>points</code> 决定。页面 IQI 只在加载时取一次、不会刷新，所以常见「显示 +5，点了只给 2」。
+      <b>11-13 实测：</b>扩展在 <code>触发score=82</code>（按上表 = +5 档）签到，服务端仍只返回 <code>Checkin! Got 1 Points</code>。
+      即 <code>score</code> 与实发分<b>没有对应关系</b>——<code>BONUS_SCORE_MAX</code> 只决定「何时签」，<b>不会提升分值</b>。
       本扩展每 5 分钟 <code>no-store</code> 重取，比常开页面的缓存新鲜；历史里会记 <code>触发score</code> 与 <code>实发N分</code> 供你对照校准。</p>
       <p><b>🛟 兜底保护：</b>当天 <b>21:00 起</b>仍未签到时，无视网络等级<b>强制签到</b>。
       判定窗口为 <b>21:00–23:59（3 小时）</b>，期间每 5 分钟采样闹钟都会检查一次，约 <b>36 次机会</b>，

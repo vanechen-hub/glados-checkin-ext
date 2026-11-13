@@ -116,6 +116,19 @@ const TODAY = "2026-11-03";
     ok(h.store.lastCheckInDate !== TODAY, "manual → 不写 lastCheckInDate", String(h.store.lastCheckInDate));
   }
 
+  console.log("=== S27: v1.5.7 回归——服务端英文「今日已记录」响应要停止重试 ===");
+  {
+    // 实测 11/12 23:27–23:57 的真实响应：code 非 0、points=0、文案为英文。
+    // 旧版 alreadyDone 正则漏掉它 → 每 5 分钟重复 POST 14 次 + 历史刷屏。
+    const msg = "Today's observation logged. Return tomorrow for more points.";
+    const h = makeHarness();
+    h.sandbox.handleCheckinResult(TODAY, msg, "force", { code: -1, message: msg, points: 0 });
+    await settle();
+    ok(h.store.lastCheckInDate === TODAY, "英文已记录响应 → 写日期，停止重复 POST", String(h.store.lastCheckInDate));
+    ok((h.store.history[0] || {}).result.includes("实发0分"), "历史仍如实记录实发 0 分", (h.store.history[0] || {}).result);
+    ok(h.store.lastDeviceMismatch !== TODAY, "不误判为设备不匹配");
+  }
+
   console.log(`\n===== 通过 ${pass} / 失败 ${fail} =====`);
   process.exit(fail ? 1 : 0);
 })();
